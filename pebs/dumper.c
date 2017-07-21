@@ -23,11 +23,10 @@ typedef uint64_t u64;
 void dump_data(int cpunum, u64 *map, int num)
 {
 	int i;
-	/*
+	
 	printf("dump %d\n", num);
 	for (i = 0; i < num; i++)
 		printf("%d: %lx\n", cpunum, map[i]);
-		*/
 }
 
 static void usage(void)
@@ -79,16 +78,16 @@ int main(int ac, char **av)
 			}
 			if(len>450000){
 				printf("%d\n",len);
-			if (binary)
-				fwrite(map[target], len,1,outfile);
-			else
+				if (binary)
+					fwrite(map[target], len,1,outfile);
+				else
 					dump_data(target, map[target], len / sizeof(u64));
 
-			if (ioctl(pfd[target].fd, SIMPLE_PEBS_RESET, 0) < 0) {
+				if (ioctl(pfd[target].fd, SIMPLE_PEBS_RESET, 0) < 0) {
 					perror("SIMPLE_PEBS_RESET");
 					continue;
-			}	
-			_count++;
+				}	
+				_count++;
 			}
 		}
 	}
