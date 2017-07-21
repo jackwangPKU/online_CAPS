@@ -1,0 +1,109 @@
+Author: Justin Funston
+Modified: July 2015
+Email: justinfunston@gmail.com
+
+MultiCacheSim is a cache simulator designed to be used with 
+memory access traces obtained with Pin: 
+https://software.intel.com/en-us/articles/pintool. It
+has been optimized for performance and can process large inputs
+(100s of GB) in a few hours depending on configuration.
+
+FEATURES
+--------
+
+* Configurable size, associativity, and line size
+* MOESI protocol simulation for multiple caches
+* Tracking of miss and data source statistics
+* NUMA statistics are maintained based off of a fist-touch policy
+   and configurable page size
+* Virtual-to-physical address translation
+* Prefetcher "plugins"
+   - Adjacent line prefetcher
+   - Sequential prefetcher (similar to AMD's L1 prefetcher)
+* LRU replacement policy
+
+COMPILATION
+-----------
+
+Simply run "make" to compile the simulator with the example driver
+program (main.cpp). If you are modifying the simulator, use the
+DEBUG flags in the Makefile which enables run-time error checking.
+
+Compilation requires a compiler supporting the unorderd_map class
+from c++11. If one isn't available the instances of unordered_map
+can be changed to map in cache.h and cache.cpp.
+
+USAGE
+-----
+
+See main.cpp for an example of using the simulator. The basic
+steps are:
+1. Create a vector mapping thread IDs to NUMA domains,
+      where the index into the vector represents the TID
+2. Create a SeqPrefetch (sequential prefetching similar to AMD L1
+      prefetcher), AdjPrefetch (adjacent line prefetcher), or a
+      NullPrefetch (placeholder that doesn't prefetch) object.
+3. Create a SingleCacheSystem or MultiCacheSystem object using the 
+      constructor, which takes:
+      the vector from step 1, the size of a cache line in bytes, 
+      the number of cache lines, the associativity, 
+      whether to count compulsory misses, whether to translate addresses,
+      and the number of caches/NUMA domains (for the MultiCacheSystem).
+4. Call System::memAccess for each memory access, in order,
+      passing the address, read or write (as an 'R' or 'W'
+      character), and the TID of the accessing thread.
+5. Read the statistics from the System object
+
+The assumed page size can be changed in misc.h, and the prefetch width
+for the SeqPrefetch class can be changed in prefetch.h (default 3 lines).
+
+The driver example in main.cpp works with the output from the
+ManualExamples/pinatrace pin tool.
+
+MULTI-PROCESS WORKLOADS
+-----------------------
+
+To use the simulator with a multi-process workload, only the driver
+program needs to be modified.
+
+First, give each of your processes a unique ID starting with 0 and
+increasing by 1 (mimicking TIDs), and use it as the TID in the steps
+above.
+
+Since the same virtual address in different processes actually refers
+to different physical addresses, we need a way to differentiate them
+in the simulator. To do this we take advantage of the fact that only
+the least significant 48 bits of an address are used in practice:
+address |= TID << (7*8);
+This places the TID in first byte of the address, ensuring that
+addresses are unique among processes.
+
+If the workload uses a shared memory region, find the range for the
+region. If an address lies within the range, do not modify the
+address as described above, thus making all addresses in the shared
+range actually shared among processes.
+
+LICENSE
+-------
+
+Copyright (c) 2015 Justin Funston
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+   1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+
+   2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+   3. This notice may not be removed or altered from any source
+   distribution.
+
