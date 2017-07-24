@@ -13,14 +13,14 @@ int main(int ac, char **av)
    // thread ids map to NUMA/cache domains. Using
    // the tid as an index gives the NUMA domain.
     printf("OK\n");
-    if(ac < 2){
-        printf("input filepath\n");
+    if(ac < 3){
+        printf("input filepath for read and write\n");
         exit(-1);
     }
-    char *filename = new char[100];
-    printf("%s\n",av[1]);
+    char filename[100]="";
+    //printf("%s\n",av[1]);
     strcpy(filename,av[1]);
-    printf("%s\n",filename);
+    //printf("%s\n",filename);
     unsigned int arr_map[] = {0};
    vector<unsigned int> tid_map(arr_map, arr_map +
          sizeof(arr_map) / sizeof(unsigned int));
@@ -57,7 +57,7 @@ int main(int ac, char **av)
 
       //++lines;
    }
-   sys.returntrace("/home/xyc/l3_trace.txt");
+   sys.returntrace(av[2]);
    infile.close();
 
    return 0;
