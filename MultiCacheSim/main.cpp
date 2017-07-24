@@ -14,7 +14,7 @@ int main(int ac, char **av)
    // the tid as an index gives the NUMA domain.
     printf("OK\n");
     if(ac < 3){
-        printf("input filepath for read and write\n");
+        printf("usage: ./cache [input_file] [output_file]\n");
         exit(-1);
     }
     char filename[100]="";
