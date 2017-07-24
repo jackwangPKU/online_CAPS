@@ -70,8 +70,8 @@
 #define EVTSEL_INT BIT(20)
 #define EVTSEL_EN  BIT(22)
 
-#define PEBS_BUFFER_SIZE	(64 * 1024) /* PEBS buffer size */
-#define OUT_BUFFER_SIZE		(64 * 1024 * 16) /* must be multiple of 4k */
+#define PEBS_BUFFER_SIZE	(64 * 1024 * 16) /* PEBS buffer size */
+#define OUT_BUFFER_SIZE		(64 * 1024 * 64) /* must be multiple of 4k */
 #define PERIOD 1
 
 static unsigned pebs_event; 
@@ -467,10 +467,10 @@ void simple_pebs_pmi(void)
 	for (pebs = (struct pebs_v1 *)ds->pebs_base;
 	     pebs < end && outbu < outbu_end;
 	     pebs = (struct pebs_v1 *)((char *)pebs + pebs_record_size)) {
-		uint64_t ip = pebs->ip;
+		uint64_t dla = pebs->dla;
 		if (pebs_record_size >= sizeof(struct pebs_v2))
 			ip = ((struct pebs_v2 *)pebs)->eventing_ip;
-		*outbu++ = ip;
+		*outbu++ = dla;
 	}
 	this_cpu_write(out_buffer, outbu);
 
