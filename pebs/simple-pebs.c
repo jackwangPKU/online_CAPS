@@ -74,7 +74,7 @@
 #define OUT_BUFFER_SIZE		(64 * 1024 * 64) /* must be multiple of 4k */
 #define PERIOD 1
 
-static unsigned pebs_event; 
+static unsigned pebs_event;
 
 static volatile int pebs_error;
 
@@ -127,13 +127,13 @@ static bool check_cpu(void)
 	unsigned a, b, c, d;
 	unsigned max, model, fam;
 	unsigned feat1, feat2;
-	
+
 	__cpuid(0, max, b, c, d);
 	if (memcmp(&b, "Genu", 4)) {
 		pr_err("Not an Intel CPU\n");
 		return false;
 	}
-		
+
 	__cpuid(1, a, b, feat1, feat2);
 	model = ((a >> 4) & 0xf);
 	fam = (a >> 8) & 0xf;
@@ -143,8 +143,8 @@ static bool check_cpu(void)
 		pr_err("Not an supported Intel CPU\n");
 		return false;
 	}
-	
-	switch (model) { 
+
+	switch (model) {
 	case 58: /* IvyBridge */
 	case 63: /* Haswell_EP */
 	case 69: /* Haswell_ULT */
@@ -168,11 +168,11 @@ static bool check_cpu(void)
 	/* Check if we support arch perfmon */
 	if (max >= 0xa) {
 		__cpuid(0xa, a, b, c, d);
-		if ((a & 0xff) < 1) { 
+		if ((a & 0xff) < 1) {
 			pr_err("No arch perfmon support\n");
 			return false;
 		}
-		if (((a >> 8) & 0xff) < 1) { 
+		if (((a >> 8) & 0xff) < 1) {
 			pr_err("No generic counters\n");
 			return false;
 		}
@@ -180,7 +180,7 @@ static bool check_cpu(void)
 		pr_err("No arch perfmon support\n");
 		return false;
 	}
-		
+
 	/* check if we support DS */
 	if (!(feat2 & FEAT2_DS)) {
 		pr_err("No debug store support\n");
@@ -264,7 +264,7 @@ static void start_stop_cpu(void *arg)
 {
 	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, arg ? 1 : 0);
 	status_dump("stop");
-}	
+}
 
 static void reset_buffer_cpu(void *arg)
 {
@@ -324,7 +324,7 @@ static struct miscdevice simple_pebs_miscdev = {
 	&simple_pebs_fops
 };
 
-struct debug_store { 
+struct debug_store {
 	u64 bts_base;
 	u64 bts_index;
 	u64 bts_max;
@@ -468,8 +468,9 @@ void simple_pebs_pmi(void)
 	     pebs < end && outbu < outbu_end;
 	     pebs = (struct pebs_v1 *)((char *)pebs + pebs_record_size)) {
 		uint64_t dla = pebs->dla;
-		if (pebs_record_size >= sizeof(struct pebs_v2))
+		/*if (pebs_record_size >= sizeof(struct pebs_v2))
 			ip = ((struct pebs_v2 *)pebs)->eventing_ip;
+        */
 		*outbu++ = dla;
 	}
 	this_cpu_write(out_buffer, outbu);
@@ -528,7 +529,7 @@ static int simple_pebs_get_vector(void)
 			0, 0, 0);
 	write_idt_entry(idt, pebs_vector,&desc);
 	return 0;
-}	       
+}
 
 static void simple_pebs_free_vector(void)
 {
@@ -553,7 +554,7 @@ static void simple_pebs_cpu_init(void *arg)
 	}
 
 	if (__this_cpu_read(out_buffer) == NULL) {
-		if (allocate_out_buf() < 0) { 
+		if (allocate_out_buf() < 0) {
 			pebs_error = 1;
 			return;
 		}
@@ -668,8 +669,8 @@ static int simple_pebs_init(void)
 out_notifier:
 	unregister_cpu_notifier(&cpu_notifier);
 	on_each_cpu(simple_pebs_cpu_reset, NULL, 1);
-	simple_pebs_free_vector();       
-	return err;	
+	simple_pebs_free_vector();
+	return err;
 }
 module_init(simple_pebs_init);
 
