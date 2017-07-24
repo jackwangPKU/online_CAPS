@@ -76,7 +76,7 @@ int main(int ac, char **av)
 				perror("SIMPLE_PEBS_GET_OFFSET");
 				continue;
 			}
-			if(len>450000){
+			if(len>1800000){
 				printf("%d\n",len);
 				if (binary)
 					fwrite(map[target], len,1,outfile);
