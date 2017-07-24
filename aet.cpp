@@ -4,7 +4,7 @@
 #include <fstream>
 #include <sys/time.h>
 using namespace std;
-
+typedef unsigned long long uint64_t;
 const int PGAP = 1024/64; // 1kb
 const int MAXT = 10000+3;
 const int MAXH = 19999997;
