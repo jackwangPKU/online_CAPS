@@ -1,9 +1,11 @@
-#!tusr/bin/python
+#!usr/bin/python
 #import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import sys
+import numpy as np
+ax = plt.subplot(1,1,1)
 filename1 = './'+sys.argv[1]+'_l3_mrc.txt'
 filename2 = './'+sys.argv[1]+'_10_l3_mrc.txt'
 filename3 = './'+sys.argv[1]+'_100_l3_mrc.txt'
@@ -41,16 +43,20 @@ for line in target4:
 for line in target5:
     a = float(line.strip().split()[0])
     data5.append(a)
-
+#plt.figure(figsize(100,80))
 plt.title(sys.argv[1]+' L3')
-plt.plot(data1,label='Offline full',ls=':',color='r')
-plt.plot(data2,label='offline 1/10',ls=':',color='y')
-plt.plot(data3,label='offline 1/100',ls=':',color='g')
-plt.plot(data4,label='offline 1/1000',ls=':',color='grey')
-plt.plot(data5,label='Online',color='b')
+ax.plot(data1,label='Offline full',color='r')
+ax.plot(data2,label='Offline 1/10',ls=':',color='y')
+ax.plot(data3,label='Offline 1/100',ls=':',color='g')
+ax.plot(data4,label='Offline 1/1000',ls=':',color='grey')
+ax.plot(data5,label='Online 1/1',color='b')
 plt.axis([0,20000,0,1])
 plt.xlabel("Cache size(KB)")
 plt.ylabel("Miss rate");
-plt.legend()
+box = ax.get_position()
+ax.set_position([box.x0,box.y0,box.width*0.8,box.height])
+
+plt.legend(loc='center left',fontsize='small',bbox_to_anchor=(1,0.5))
+
 plt.savefig(sys.argv[1]+'_l3_mrc.jpg')
 #plt.show()

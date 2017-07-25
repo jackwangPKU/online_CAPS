@@ -25,7 +25,7 @@ struct tnode {
 
 node *hash[MAXH];
 FILE *fin,*fout;
-ifstream infile;
+//ifstream infile;
 long long rtd[MAXT];
 long long n,m;
 
@@ -89,10 +89,10 @@ void solve()
     uint64_t addr;
     tnode data;
 	printf("OK\n");
-    //while (fread(&data,sizeof(data),1,fin)) {
-	while(!infile.eof()){
+    while (fread(&data,sizeof(data),1,fin)) {
+	//while(!infile.eof()){
         //printf("%d\n",n);
-		infile.read((char*)&data,sizeof(data));
+		//infile.read((char*)&data,sizeof(data));
 		addr = data.offset>>6;
         n++;
         //if (n%100000000==0) printf("%lld\n",n);
@@ -126,20 +126,24 @@ void solve()
 int main(int argv, char **argc)
 {
     char filename[100] = "input.txt";
-    if (argv>=3) {
+    if (argv>=4) {
         strcpy(filename,argc[1]);
     }
     else{
         printf("input filename\n");
         exit(-1);
     }
-    //fin = fopen(filename,"rb");
-	infile.open(filename,ios::binary);
+    fin = fopen(filename,"rb");
+	//infile.open(filename,ios::binary);
     strcpy(filename,argc[2]);
     fout = fopen(filename,"w");
     solve();
-	infile.close();
-    //fclose(fin);
+	//infile.close();
+    fclose(fin);
+	strcpy(filename,argc[3]);
+	fout = fopen(filename,"w");
+	for(int i = 0;i<MAXT;i++)
+		fprintf(fout,"%lld\n",rtd[i]);
     fclose(fout);
     return 0;
 }
