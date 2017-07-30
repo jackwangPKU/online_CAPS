@@ -1,1 +1,3 @@
-Usage: copy the directory to the path [your pin root]/source/tools/ and then make
+Author: todd xiang<jsbyxyc@me.com>
+Usage: copy the directory to the path [your pin root]/source/tools/ and then make.
+In order to use unorder_map, if the pin doesn't compile using c++11, you should modify the TOOL_CXXFLAGS_NOOPT in makefile.unix.config in /tools/Config.
