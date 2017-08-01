@@ -40,6 +40,110 @@ const uint32_t PAGE_SHIFT = 21;
 #error "Bad PAGE_SIZE"
 #endif
 
+struct node {
+    uint64_t addr;
+	long long label;
+    node *nxt;
+    node(uint64_t _addr = 0, long long _label = 0, node *_nxt = NULL)
+         : addr(_addr),label(_label),nxt(_nxt) {}
+};
+
+struct tnode {
+    uint64_t offset;
+};
+
+node *_hash[MAXH];
+//FILE *fin,*fout;
+//ifstream infile;
+long long rtd[MAXT];
+long long n=0,m=CacheLineSize;
+
+long long domain_value_to_index(long long value)
+{
+    long long loc = 0,step = 1;
+    int index = 0;
+    while (loc+step*domain<value) {
+        loc += step*domain;
+        step *= 2;
+        index += domain;
+    }
+    while (loc<value) index++,loc += step;
+    return index;
+}
+
+long long domain_index_to_value(long long index)
+{
+    long long value = 0,step = 1;
+    while (index>domain) {
+        value += step*domain;
+        step *= 2;
+        index -= domain;
+    }
+    while (index>0) {
+        value += step;
+        index--;
+    }
+    return value;
+}
+
+void insert(uint64_t now)
+{
+    int t = now%MAXH;
+    node *tmp = new node(now,n,_hash[t]);
+    _hash[t] = tmp;
+}
+
+long long find(uint64_t now)
+{
+    int t = now%MAXH;
+    node *tmp = _hash[t];
+	node *pre = NULL;
+    while (tmp) {
+        if (tmp->addr==now) {
+            long long tlabel = tmp->label;
+            if (pre==NULL) _hash[t] = tmp->nxt;
+            else pre->nxt = tmp->nxt;
+            delete tmp;
+            return tlabel;
+        }
+        pre = tmp;
+        tmp = tmp->nxt;
+    }
+    return 0;
+}
+
+void solve(uint64_t addr){
+    //memset(rtd,0,sizeof(rtd));
+    //n = 0;
+    n++;
+	long long t = find(addr);
+        if (t) rtd[domain_value_to_index(n-t)]++;
+        insert(addr);
+}
+
+void print_mrc(ofstream &outFile){
+    double sum = 0; long long T = 0;
+    double tot = 0;
+    double N = n;
+    long long step = 1; int dom = 0,dT = 0,loc = 0;
+    m = CacheLineSize;
+    for (long long c = 1; c<=m; c++) {
+        while (T<=n && tot/N<c) {
+            tot += N-sum;
+            T++;
+            if (T>loc) {
+                if (++dom>domain) dom = 1,step *= 2;
+                loc += step;
+                dT++;
+            }
+            sum += 1.0*rtd[dT]/step;
+        }
+        //ans[c] = 1.0*(N-sum)/N;
+        if (c%PGAP==0) outFile << std::setprecision(6) << 1.0*(N-sum)/N << endl;
+    }
+
+}
+
 enum cacheState {MOD,OWN,EXC,SHA,INV};
 
 struct cacheLine{
@@ -199,10 +303,9 @@ public:
 //  performs about 10% better than the MultiCache implementation
 class SingleCacheSystem : public System {
    Cache* cache;
-   vector<unsigned long long> trace;
+   //vector<unsigned long long> trace;
 
 public:
-   //vector<unsigned long long> trace;
    SingleCacheSystem(std::vector<unsigned int> tid_to_domain,
             unsigned int line_size, unsigned int num_lines, unsigned int assoc,
             Prefetch* prefetcher, bool count_compulsory=false,
@@ -210,10 +313,11 @@ public:
    ~SingleCacheSystem();
    void memAccess(uint64_t address, char rw, unsigned int tid,
                      bool is_prefetch=false);
-
+/*
    vector<unsigned long long>& gettrace(){
 		return trace;
    }
+*/
 };
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -532,7 +636,8 @@ void SingleCacheSystem::memAccess(uint64_t address, char rw, unsigned
    }
    else{
        //printf("%llx\n",address);
-       trace.push_back(address);
+       //trace.push_back(address);
+       solve(address);
    }
 
    cacheState new_state = INV;
@@ -659,7 +764,7 @@ int SeqPrefetch::prefetchHit(uint64_t address, unsigned int tid,
    return 1;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+/*
 struct node {
     uint64_t addr;
 	long long label;
@@ -767,7 +872,7 @@ void solve(vector<unsigned long long>& trace, ofstream& outFile)
 
 }
 
-
+*/
 ofstream outFile;
 
 /* ===================================================================== */
@@ -874,7 +979,7 @@ VOID Fini(int code, VOID * v)
 {
     //outFile << "PIN:FootPrint result!\n";
 
-	solve(sys.gettrace(),outFile);
+	print_mrc(outFile);
     outFile.close();
 }
 
@@ -896,6 +1001,7 @@ int main(int argc, char *argv[])
     }
 
     outFile.open(KnobOutputFile.Value().c_str());
+	memset(rtd,0,sizeof(rtd));
 
     INS_AddInstrumentFunction(Instruction, 0);
     PIN_AddFiniFunction(Fini, 0);
