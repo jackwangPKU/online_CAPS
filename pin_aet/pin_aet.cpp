@@ -22,11 +22,15 @@
 //using namespace std;
 //typedef unsigned long long uint64_t;
 const int PGAP = 1024/64; // 1kb
-const int MAXT = 10000+3;
+const int MAXT = 512000+3;
 const int MAXH = 19999997;
-const int domain = 256;
+const int domain = 25600;
 const int CacheLineSize = 30*1024*1024/64;
 
+ofstream outFile;
+char benchname[100];
+int rth_count = 0;
+long long phase_count = 0;
 //misc.h
 #define PAGE_SIZE_4KB
 
@@ -112,15 +116,34 @@ long long find(uint64_t now)
     return 0;
 }
 
+void print_rth(){
+	char filename[100];
+	strcpy(filename,benchname);
+	char index[20];
+	sprintf(index,"%d.rth",rth_count);
+	strcat(filename,index);
+	if(rth_count)outFile.close();
+	rth_count++;
+	outFile.open(filename);
+	for(int i = 0; i < MAXT; i++){
+		outFile << rtd[i] << endl;		
+	}
+}
+
 void solve(uint64_t addr){
     //memset(rtd,0,sizeof(rtd));
     //n = 0;
-    n++;
+    	n++;
+	phase_count++;
 	long long t = find(addr);
         if (t) rtd[domain_value_to_index(n-t)]++;
         insert(addr);
+	if(phase_count>=1000000000){//print rth
+		print_rth();
+		phase_count=0;
+		memset(rtd,0,sizeof(rtd));
+	}
 }
-
 void print_mrc(ofstream &outFile){
     double sum = 0; long long T = 0;
     double tot = 0;
@@ -873,8 +896,6 @@ void solve(vector<unsigned long long>& trace, ofstream& outFile)
 }
 
 */
-ofstream outFile;
-
 /* ===================================================================== */
 /* Commandline Switches */
 /* ===================================================================== */
@@ -979,7 +1000,9 @@ VOID Fini(int code, VOID * v)
 {
     //outFile << "PIN:FootPrint result!\n";
 
-	print_mrc(outFile);
+	//print_mrc(outFile);
+	if(phase_count>=10000000) print_rth();
+	printf("L3 access trace length: %lld\n",n);
     outFile.close();
 }
 
@@ -1000,7 +1023,8 @@ int main(int argc, char *argv[])
         return Usage();
     }
 
-    outFile.open(KnobOutputFile.Value().c_str());
+    //outFile.open(KnobOutputFile.Value().c_str());
+	strcpy(benchname,KnobOutputFile.Value().c_str());	
 	memset(rtd,0,sizeof(rtd));
 
     INS_AddInstrumentFunction(Instruction, 0);
