@@ -66,7 +66,7 @@ int main(int ac, char **av)
 		exit(-1);
 	}
 	int _count = 0;
-	for(;_count<=1000;){
+	for(;;){
 		if(poll(pfd, ncpus, -1)<0)
 			perror("poll");
 		if(pfd[target].revents & POLLIN){

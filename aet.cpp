@@ -126,7 +126,7 @@ void solve()
 int main(int argv, char **argc)
 {
     char filename[100] = "input.txt";
-    if (argv>=4) {
+    if (argv>=3) {
         strcpy(filename,argc[1]);
     }
     else{
@@ -140,10 +140,12 @@ int main(int argv, char **argc)
     solve();
 	//infile.close();
     fclose(fin);
+	/*
 	strcpy(filename,argc[3]);
 	fout = fopen(filename,"w");
 	for(int i = 0;i<MAXT;i++)
 		fprintf(fout,"%lld\n",rtd[i]);
+	*/
     fclose(fout);
     return 0;
 }
