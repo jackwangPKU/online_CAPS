@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef uint64_t u64;
 
 #include "simple-pebs.h"
 #include "dump-util.h"
