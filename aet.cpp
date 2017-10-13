@@ -1,6 +1,6 @@
-#include <cstdio>
-#include <cstring>
-#include <cstdlib>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <fstream>
 #include <sys/time.h>
 using namespace std;

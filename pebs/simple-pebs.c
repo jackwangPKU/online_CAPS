@@ -143,7 +143,7 @@ static bool check_cpu(void)
 		pr_err("Not an supported Intel CPU\n");
 		return false;
 	}
-
+	printk(KERN_DEBUG"arch model %u\n",model);
 	switch (model) {
 	case 58: /* IvyBridge */
 	case 63: /* Haswell_EP */
