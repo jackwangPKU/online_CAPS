@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef uint64_t u64;
 
 #include "simple-pebs.h"
 #include "dump-util.h"
@@ -77,7 +76,7 @@ int main(int ac, char **av)
 				continue;
 			}
 			if(len>1800000){
-				printf("%d\n",len);
+				/*printf("%d\n",len);*/
 				if (binary)
 					fwrite(map[target], len,1,outfile);
 				else

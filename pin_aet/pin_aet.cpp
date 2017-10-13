@@ -129,21 +129,6 @@ void print_rth(){
 		outFile << rtd[i] << endl;		
 	}
 }
-
-void solve(uint64_t addr){
-    //memset(rtd,0,sizeof(rtd));
-    //n = 0;
-    	n++;
-	phase_count++;
-	long long t = find(addr);
-        if (t) rtd[domain_value_to_index(n-t)]++;
-        insert(addr);
-	if(phase_count>=1000000000){//print rth
-		print_rth();
-		phase_count=0;
-		memset(rtd,0,sizeof(rtd));
-	}
-}
 void print_mrc(ofstream &outFile){
     double sum = 0; long long T = 0;
     double tot = 0;
@@ -167,6 +152,27 @@ void print_mrc(ofstream &outFile){
 
 }
 
+
+void solve(uint64_t addr){
+    //memset(rtd,0,sizeof(rtd));
+    //n = 0;
+    	n++;
+	phase_count++;
+	long long t = find(addr);
+    if (t) rtd[domain_value_to_index(n-t)]++;
+    insert(addr);
+	char filename[100];
+	strcpy(filename,benchname);
+	outFile.open(filename);
+	print_mrc(outFile);
+	outFile.close();
+/*	if(phase_count>=1000000000){//print rth
+		print_rth();
+		phase_count=0;
+		memset(rtd,0,sizeof(rtd));
+	}
+*/
+}
 enum cacheState {MOD,OWN,EXC,SHA,INV};
 
 struct cacheLine{
