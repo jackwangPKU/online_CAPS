@@ -31,7 +31,11 @@
  * Alternatively this code can be used under the terms of the GPLv2.
  */
 
-
+/*
+ * extended by yaocheng xiang
+ * additional profile: LLC Occupancy/Reference/Miss, Instroction, Core Cycle
+ * to get LLC occupancy vs Miss ratio, IPC and API(access per cycle)
+ * */
 #define DEBUG 1
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -56,7 +60,22 @@
 #include "simple-pebs.h"
 
 #define MSR_IA32_PERFCTR0    		0x000000c1
+#define MSR_IA32_PERFCTR1		0x000000c2
+
 #define MSR_IA32_EVNTSEL0    		0x00000186
+#define MSR_IA32_EVNTSEL1		0x00000187
+#define MSR_IA32_EVNTSEL2		0x00000188
+#define MSR_IA32_EVNTSEL3		0x00000189
+#define MSR_IA32_EVNTSEL4		0x0000018a
+
+#define MSR_IA32_PMC0 			0x000000c1
+#define MSR_IA32_PMC1			0x000000c2
+#define MSR_IA32_PMC2			0x000000c3
+#define MSR_IA32_PMC3			0x000000c4
+#define MSR_IA32_PMC4			0x000000c5
+
+#define MSR_FIXED_CTR0			0x00000309/*inst_retired.any*/
+#define MSR_FIXED_CTR1			0x0000030a/*cpu_clk_unhalted*/
 
 #define MSR_IA32_PERF_CABABILITIES  	0x00000345
 #define MSR_IA32_PERF_GLOBAL_STATUS 	0x0000038e
@@ -66,7 +85,7 @@
 #define MSR_IA32_DS_AREA     		0x00000600
 
 #define EVTSEL_USR BIT(16)
-#define EVTSEL_OS  BIT(17)
+#define EVTSEL_OS 0
 #define EVTSEL_INT BIT(20)
 #define EVTSEL_EN  BIT(22)
 
@@ -79,6 +98,15 @@ static unsigned pebs_event;
 static volatile int pebs_error;
 
 static int pebs_vector = 0xf0;
+/*
+ * profile API, Miss ratio, occupancy
+ * */
+static DEFINE_PER_CPU(unsigned long long,pre_access);
+static DEFINE_PER_CPU(unsigned long long,pre_cycles);
+static DEFINE_PER_CPU(unsigned long long,pre_instr);
+static DEFINE_PER_CPU(unsigned long long,d_access);
+static DEFINE_PER_CPU(unsigned long long,d_instr);
+static DEFINE_PER_CPU(unsigned long long,d_cycles);
 
 struct pebs_v1 {
 	u64 flags;
@@ -262,15 +290,17 @@ static void status_dump(char *where)
 
 static void start_stop_cpu(void *arg)
 {
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, arg ? 1 : 0);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, arg ? 0x300000006 : 0);
 	status_dump("stop");
 }
 
 static void reset_buffer_cpu(void *arg)
 {
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000000);
 	__this_cpu_write(out_buffer, __this_cpu_read(out_buffer_base));
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 1);
+	/*clear pmc2
+	wrmsrl(MSR_IA32_PMC2,0);*/
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
 }
 
 static DEFINE_MUTEX(reset_mutex);
@@ -305,6 +335,12 @@ static long simple_pebs_ioctl(struct file *file, unsigned int cmd,
 		smp_call_function_single(cpu, reset_buffer_cpu, NULL, 1);
 		mutex_unlock(&reset_mutex);
 		return 0;
+	case GET_ACCESS:
+		return put_user(per_cpu(d_access, cpu), (unsigned long long*)arg);
+	case GET_CYCLES:
+		return put_user(per_cpu(d_cycles, cpu), (unsigned long long*)arg);
+	case GET_INSTR:
+		return put_user(per_cpu(d_instr, cpu), (unsigned long long*)arg);
 	default:
 		return -ENOTTY;
 	}
@@ -364,7 +400,7 @@ static int allocate_buffer(void)
 	ds->pebs_index = ds->pebs_base;
 	ds->pebs_max = ds->pebs_base + (num_pebs - 1) * pebs_record_size + 1;
 	ds->pebs_thresh = ds->pebs_base + (num_pebs - num_pebs/10) * pebs_record_size ;
-	ds->pebs_reset[0] = -(long long)PERIOD;
+	ds->pebs_reset[1] = -(long long)PERIOD;
 	__this_cpu_write(cpu_ds, ds);
 
 	status_dump("allocate_buffer");
@@ -454,7 +490,7 @@ void simple_pebs_pmi(void)
 	/* global status ack */
 	wrmsrl(MSR_IA32_PERF_GLOBAL_OVF_CTRL, 1ULL << 62);
 
-	wrmsrl(MSR_IA32_PERFCTR0, -PERIOD); /* ? sign extension on width ? */
+	wrmsrl(MSR_IA32_PERFCTR1, -PERIOD); /* ? sign extension on width ? */
 
 	status_dump("pmi2");
 
@@ -474,6 +510,21 @@ void simple_pebs_pmi(void)
 		*outbu++ = dla;
 	}
 	this_cpu_write(out_buffer, outbu);
+	
+	unsigned long long access,cycles,instr;
+	unsigned long long da,dc,di;
+	rdmsrl(MSR_IA32_PMC2,access);
+	rdmsrl(MSR_FIXED_CTR0,instr);
+	rdmsrl(MSR_FIXED_CTR1,cycles);
+	da = access-__this_cpu_read(pre_access);
+	dc = cycles-__this_cpu_read(pre_cycles);
+	di = instr-__this_cpu_read(pre_instr);
+	__this_cpu_write(d_access,da);
+	__this_cpu_write(d_cycles,dc);
+	__this_cpu_write(d_instr,di);
+	__this_cpu_write(pre_access,access);
+	__this_cpu_write(pre_cycles,cycles);
+	__this_cpu_write(pre_instr,instr);
 
 #if 0
 	pr_debug("%d: pmi %llx out %lx max %llx counter %llx num %llu\n",
@@ -500,7 +551,7 @@ void simple_pebs_pmi(void)
 	if ((void *)outbu - (void *)outbu_start >= OUT_BUFFER_SIZE/2) {
 		wake_up(this_cpu_ptr(&simple_pebs_wait));
 	} else
-		wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 1);
+		wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
 
 	status_dump("pmi3");
 }
@@ -563,7 +614,7 @@ static void simple_pebs_cpu_init(void *arg)
 	init_waitqueue_head(this_cpu_ptr(&simple_pebs_wait));
 
 	/* Check if someone else is using the PMU */
-	rdmsrl(MSR_IA32_EVNTSEL0, val);
+	rdmsrl(MSR_IA32_EVNTSEL1, val);
 	if (val & EVTSEL_EN) {
 		pr_err("Someone else using perf counter 0\n");
 		pebs_error = 1;
@@ -584,14 +635,27 @@ static void simple_pebs_cpu_init(void *arg)
 	/* First disable PMU to avoid races */
 	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0);
 
-	wrmsrl(MSR_IA32_PERFCTR0, -PERIOD); /* ? sign extension on width ? */
-	wrmsrl(MSR_IA32_EVNTSEL0,
+	wrmsrl(MSR_IA32_PERFCTR1, -PERIOD); /* ? sign extension on width ? */
+	wrmsrl(MSR_IA32_EVNTSEL1,
 		pebs_event | EVTSEL_EN | EVTSEL_USR | EVTSEL_OS);
 
+	wrmsrl(MSR_IA32_EVNTSEL2,
+		0x4f2e | EVTSEL_EN | EVTSEL_USR | EVTSEL_OS);
 	/* Enable PEBS for counter 0 */
-	wrmsrl(MSR_IA32_PEBS_ENABLE, 1);
+	wrmsrl(MSR_IA32_PEBS_ENABLE, 2);
+	unsigned long long ori_access,ori_cycles,ori_instr;
+	rdmsrl(MSR_IA32_PMC2,ori_access);
+	rdmsrl(MSR_FIXED_CTR0,ori_instr);
+	rdmsrl(MSR_FIXED_CTR1,ori_cycles);
+	__this_cpu_write(pre_access,ori_access);
+	__this_cpu_write(pre_cycles,ori_cycles);
+	__this_cpu_write(pre_instr,ori_instr);
+	
+	__this_cpu_write(d_access,0);
+	__this_cpu_write(d_cycles,0);
+	__this_cpu_write(d_instr,0);
 
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 1);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
 	__this_cpu_write(cpu_initialized, 1);
 }
 
@@ -600,8 +664,8 @@ static void simple_pebs_cpu_reset(void *arg)
 	if (__this_cpu_read(cpu_initialized)) {
 		wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0);
 		wrmsrl(MSR_IA32_PEBS_ENABLE, 0);
-		wrmsrl(MSR_IA32_EVNTSEL0, 0);
-		wrmsrl(MSR_IA32_PERFCTR0, 0);
+		wrmsrl(MSR_IA32_EVNTSEL1, 0);
+		wrmsrl(MSR_IA32_PERFCTR1, 0);
 		wrmsrl(MSR_IA32_DS_AREA, __this_cpu_read(cpu_old_ds));
 		apic_write(APIC_LVTPC, __this_cpu_read(old_lvtpc));
 		__this_cpu_write(cpu_initialized, 0);
@@ -635,6 +699,7 @@ static int simple_pebs_cpu(struct notifier_block *nb, unsigned long action,
 static struct notifier_block cpu_notifier = {
 	.notifier_call = simple_pebs_cpu,
 };
+
 
 static int simple_pebs_init(void)
 {

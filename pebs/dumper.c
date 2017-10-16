@@ -85,7 +85,21 @@ int main(int ac, char **av)
 				if (ioctl(pfd[target].fd, SIMPLE_PEBS_RESET, 0) < 0) {
 					perror("SIMPLE_PEBS_RESET");
 					continue;
-				}	
+				}
+				unsigned long long access,cycles,instr;
+				if (ioctl(pfd[target].fd, GET_ACCESS, &access) < 0) {
+					perror("GET_ACCESS");
+					continue;
+				}
+				if (ioctl(pfd[target].fd, GET_CYCLES, &cycles) < 0) {
+					perror("GET_CYCLES");
+					continue;
+				}
+				if (ioctl(pfd[target].fd, GET_INSTR, &instr) < 0) {
+					perror("GET_INSTR");
+					continue;
+				}
+				printf("%d %llu %llu %llu\n",len,access,cycles,instr);	
 				_count++;
 			}
 		}
