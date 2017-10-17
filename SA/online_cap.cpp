@@ -1,5 +1,5 @@
 /* Dump simple PEBS data from kernel driver */
-extern "c"{
+//extern "C"{
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
@@ -16,9 +16,9 @@ extern "c"{
 #include <time.h>
 #include <sys/time.h>
 #include <string.h>
-#include "../pebs/simple-pebs.h"
-#include "../pebs/dump-util.h"
-}
+#include "simple-pebs.h"
+#include "dump-util.h"
+//}
 #include "predict.h"
 
 #define PGAP 1024/64
@@ -27,13 +27,13 @@ extern "c"{
 #define domain  256
 #define STEP  10000
 #define CacheLineSize  56320 * 1024  / 64
-
-extern "c"{
+/*
+extern "C"{
 	int get_size(void);
 	void open_cpu(void **mapp, int cnum, struct pollfd *pfd, int size);
 }
-
-int core_use = {10,12,14,16,44,46,48,50,52,54,56,58,60,62,64};
+*/
+int core_use[15] = {10,12,14,16,44,46,48,50,52,54,56,58,60,62,64};
 struct node {
     unsigned long long addr,label,ed;
     struct node *pre,*nxt;
@@ -240,11 +240,10 @@ void find(unsigned long long now)
     return;
 }
 
-int main(int ac, char **av)
+int main(int argv, char **argc)
 {
 	/*init workload*/
 	char filename[100];
-    	char target[100];
     	srand(time(NULL));
 
     workload_num = argv / 2 - 1;
@@ -272,14 +271,7 @@ int main(int ac, char **av)
     }
     get_baseIPC();
 
-	/*get mrc*/
-	qlen = 0; insnum = 0;
-    	memset(rtd,0,sizeof(unsigned long long)*MAXL);
-   	m = 0; n = 0;
-    	unsigned long long now,tott = 0;
-
-    	unsigned long long loc = rand()%(STEP*2)+1;
-
+//printf("OK\n");
 	int _size = get_size();
 	int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 	void *map[ncpus];
@@ -288,15 +280,25 @@ int main(int ac, char **av)
 	bool binary = false;
 
 	int k =0;
-	for (k = 0; k < worload_num; k++){
-		int real_core = core_use[k];
-		open_cpu(&map[real_core], real_core, &pfd[real_core], _size);
+	for (k = 0; k < ncpus; k++){
+		open_cpu(&map[k], k, &pfd[k], _size);
 	}
+	while(1){
 	int target = 0;
 	for(k = 0; k < workload_num; k++){
-		target = core_use[k];	
+		target = core_use[k];
+		//printf("target: %d\n",target);
+	
+		/*get mrc*/
+		qlen = 0; insnum = 0;
+    	memset(rtd,0,sizeof(unsigned long long)*MAXL);
+		memset(tar,0,sizeof(struct node)*MAXH);
+		memset(hash,0,sizeof(struct node*)*MAXH);
+		m = 0; n = 0;
+    	unsigned long long now,tott = 0;
+    	unsigned long long loc = rand()%(STEP*2)+1;
 		int _count = 0;
-		for(;_count<=5;){
+		for(;_count<2;){
 			if(poll(pfd, ncpus, -1)<0)
 				perror("poll");
 			if(pfd[target].revents & POLLIN){
@@ -307,8 +309,8 @@ int main(int ac, char **av)
 					continue;
 				}
 					if(len>1800000){
-				/*	
- 				printf("%d\n",len);
+ 				//printf("%d\n",len);
+				/*
 				if (binary)
 					fwrite(map[target], len,1,outfile);
 				else
@@ -335,15 +337,16 @@ int main(int ac, char **av)
 		}
 		/*access rate*/
 		unsigned long long d_instr,d_access;
-		if(ioctl(pdf[target].fd, GET_ACCESS, &d_access)<0){
+		if(ioctl(pfd[target].fd, GET_ACCESS, &d_access)<0){
 			perror("GET ACCESS");
 			return -1;
 		}
-		if(ioctl(pdf[target].fd, GET_INSTR, &d_instr)<0){
+		if(ioctl(pfd[target].fd, GET_INSTR, &d_instr)<0){
 			perror("GET INSTR");
 			return -1;
 		}
 		workload[k].access_rate = (double)d_access/d_instr;
+		//printf("access_rate:%lf\n",workload[k].access_rate);
 		/*mrc*/
 		memset(workload[k].mrc,0,sizeof(double)*MAXS);
 		int i =0;
@@ -356,6 +359,7 @@ int main(int ac, char **av)
     		double N = tott+1.0*tott/(n-m)*m;
     		unsigned long long step = 1; int dom = 0,dT = 0; loc = 0;
 		unsigned long long c = 1;
+			int _index = 0;
     		for (c = 1; c<=m; c++) {
         		while (T<=n && tot/N<c) {
             			tot += N-sum;
@@ -367,10 +371,15 @@ int main(int ac, char **av)
            			}
             			sum += 1.0*rtd[dT]/step;
         		}
-        		if (c%PGAP==0) workload[k].mrc[(c/PGAP)-1] = 1.0*(N-sum)/N;
-   	 	}	
+        		if (c%PGAP==0) {workload[k].mrc[_index] = 1.0*(N-sum)/N;
+					//printf("%d: %.6lf\n",c/PGAP -1,workload[k].mrc[c/PGAP -1]);
+					//printf("%llu %d %d\n",c,PGAP,c/PGAP);	
+					_index ++;
+				}
+   	 	}
+		//for(int y=0;y<MAXS;y++){printf("%d: %.6lf\n",y,workload[k].mrc[y]);}	
 
-
+		//printf("mrc 0:%.6lf 1:%.6lf\n",workload[k].mrc[0],workload[k].mrc[MAXS]);
 	}
  
 /*predict and SA==============================*/
@@ -384,7 +393,7 @@ int main(int ac, char **av)
             4; // 0 right expand, 1 right reduce, 2 left expand, 3 left reduce
         uint64_t pre_cos = modifyCos(target, direction);
         double tmp = predict_total_miss_rate();
-        printf("miss_rate: %lf\n",tmp);
+        //printf("miss_rate: %lf\n",tmp);
         if (tmp < best){
             best = tmp;
 		for(int _i = 0;_i<workload_num;_i++)
@@ -396,15 +405,26 @@ int main(int ac, char **av)
         } else {
             cur_miss_rate = tmp;
         }
-        if(_count==100){
-            T*=0.95;
+        if(_count==5){
+            T*=0.8;
             _count = 0;
         }
         else _count++;
     }
-	printf("best cos:=========\n");
-	for(int _j = 0; _j<workload_num;_j++ )
-		printf("%s : %llu\n",workload[_j].name,workload[_j].cos);
-	prinf();
+	printf("best %.6lf, cos:=========\n",best);
+	char buffer[1024]={0};
+	for(int _j = 0; _j<workload_num;_j++ ){
+		sprintf(buffer,"pqos -e \"llc:%d=%s\"",_j+1,ull216Str(workload[_j].cos));
+		//printf("%s : %s\n",workload[_j].name,ull216Str(workload[_j].cos));
+		printf("%s\n",buffer);
+		system(buffer);
+	}
+	for(int _j = 0; _j<workload_num;_j++){
+		sprintf(buffer,"pqos -a \"llc:%d=%d\"",_j+1,core_use[_j]);
+		printf("%s\n",buffer);
+		system(buffer);
+	}
+	sleep(20000);
+	}
 	return 0;
 }

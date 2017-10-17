@@ -3,7 +3,7 @@
     #include "predict.h"
 #endif
 
-uint64_t m;
+//uint64_t m;
 Segment segment[WAY+1];
 int segment_num;
 Workload workload[MAXN];
@@ -12,7 +12,7 @@ double occupancy[MAXN][WAY+1];
 uint64_t accesses;
 bool need_calc_ar;
 double CPI = 0.58;
-double PENALTY = 50;
+double PENALTY = 5000;
 
 void segmentation() {
     set<int> current;
@@ -66,6 +66,7 @@ void o2m() {
         if(occ>=MAXS) occ=MAXS-1;
         // if(occ<0) printf("error\n");
         workload[i].miss_ratio = workload[i].mrc[(uint64_t)occ];
+		//printf("%.6lf %d\n",workload[i].miss_ratio,(int)occ);
         workload[i].ipc = 1/(CPI+workload[i].miss_ratio*workload[i].access_rate*PENALTY);
         //printf("in o2m workload[%d] , miss_ratio: %lf ipc: %lf\n",i,workload[i].miss_ratio,workload[i].ipc);
     }
@@ -178,8 +179,8 @@ double predict_max_weighted_slowdown(double CPI, double PENALTY) {
         m2o();
     }
     */
-    accesses = 1000;
-    for (int i = 0; i < 8000; i++) {
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
         o2m();
         m2o();
         /*
@@ -189,7 +190,7 @@ double predict_max_weighted_slowdown(double CPI, double PENALTY) {
         */
         // printf("\n");
         if (i % 10 == 0)
-            accesses--;
+            accesses=accesses-150;
     }
     o2m();
 
@@ -221,8 +222,8 @@ double predict_fair_weighted_slowdown(double CPI, double PENALTY) {
         m2o();
     }
     */
-    accesses = 1000;
-    for (int i = 0; i < 8000; i++) {
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
         o2m();
         m2o();
         /*
@@ -232,7 +233,7 @@ double predict_fair_weighted_slowdown(double CPI, double PENALTY) {
         */
         // printf("\n");
         if (i % 10 == 0)
-            accesses--;
+            accesses-=150;
     }
     o2m();
 
@@ -265,8 +266,8 @@ double predict_weighted_slowdown(double CPI, double PENALTY) {
         m2o();
     }
     */
-    accesses = 1000;
-    for (int i = 0; i < 8000; i++) {
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
         o2m();
         m2o();
         /*
@@ -276,7 +277,7 @@ double predict_weighted_slowdown(double CPI, double PENALTY) {
         */
         // printf("\n");
         if (i % 10 == 0)
-            accesses--;
+            accesses-=150;
     }
     o2m();
 
@@ -308,8 +309,8 @@ double predict_total_ipc(double CPI, double PENALTY) {
         m2o();
     }
     */
-    accesses = 1000;
-    for (int i = 0; i < 8000; i++) {
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
         o2m();
         m2o();
     /*
@@ -319,7 +320,7 @@ double predict_total_ipc(double CPI, double PENALTY) {
     */
         // printf("\n");
         if (i % 10 == 0)
-            accesses--;
+            accesses-=150;
     }
 
     o2m();
@@ -350,8 +351,8 @@ double predict_total_miss_rate() {
         m2o();
     }
     */
-    accesses = 1000;
-    for (int i = 0; i < 8000; i++) {
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
         o2m();
         m2o();
         /*
@@ -361,18 +362,19 @@ double predict_total_miss_rate() {
         */
         // printf("\n");
         if (i % 10 == 0)
-            accesses--;
+            accesses-=150;
     }
     o2m();
 
     double pre_total_miss_ratio = 0;
-
     for (int i = 0; i < workload_num; i++) {
-        pre_total_miss_ratio += workload[i].miss_ratio*workload[i].access_rate;
-    } // printf("%15s\t%s\t%lf\t%lf\t%lf\n", workload[i].name,
-      // workload[i].allocation, workload[i].access_rate,
+        pre_total_miss_ratio += workload[i].miss_ratio*workload[i].access_rate*1000;
+    
+	 //printf("%15s\t%llx\t%lf\t%.20lf\t%lf\n", workload[i].name,
+       //workload[i].cos, workload[i].access_rate,
       // workload[i].miss_ratio,workload[i].occ);
-    return pre_total_miss_ratio;
+	}
+	 return pre_total_miss_ratio;
 }
 
 void predict_all(double CPI,double PENALTY,double *miss,double *ipc,double *ws,double *ms,double *fs) {
