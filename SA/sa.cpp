@@ -67,7 +67,7 @@ bool containOne1(uint64_t cos) {
     else
         return false;
 }
-// direction: 0 right expand, 1 right reduce, 2 left expand, 3 left reduce
+/* direction: 0 right expand, 1 right reduce, 2 left expand, 3 left reduce*/
 uint64_t modifyCos(int index, int d) {
     uint64_t cos = workload[index].cos;
     uint64_t pre_value = cos;
