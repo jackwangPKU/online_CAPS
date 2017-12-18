@@ -33,7 +33,7 @@
 
 /*
  * extended by yaocheng xiang
- * additional profile: LLC Occupancy/Reference/Miss, Instroction, Core Cycle
+ * additional profile: LLC Occupancy/Reference/Miss, Instruction, Core Cycle
  * to get LLC occupancy vs Miss ratio, IPC and API(access per cycle)
  * */
 #define DEBUG 1
