@@ -20,7 +20,6 @@
 #include "dump-util.h"
 //}
 #include "predict.h"
-
 #define PGAP 1024/64
 #define MAXL 100000+3
 #define MAXH  8192
@@ -287,7 +286,7 @@ int main(int argv, char **argc)
 	int target = 0;
 	for(k = 0; k < workload_num; k++){
 		target = core_use[k];
-		//printf("target: %d\n",target);
+		printf("target: %d\n",target);
 	
 		/*get mrc*/
 		qlen = 0; insnum = 0;
@@ -297,8 +296,10 @@ int main(int argv, char **argc)
 		m = 0; n = 0;
     	unsigned long long now,tott = 0;
     	unsigned long long loc = rand()%(STEP*2)+1;
+		int checklimit = 0;
 		int _count = 0;
-		for(;_count<2;){
+		for(;_count<4;){
+			checklimit ++;
 			if(poll(pfd, ncpus, -1)<0)
 				perror("poll");
 			if(pfd[target].revents & POLLIN){
@@ -308,8 +309,9 @@ int main(int argv, char **argc)
 					perror("SIMPLE_PEBS_GET_OFFSET");
 					continue;
 				}
-					if(len>1800000){
- 				//printf("%d\n",len);
+					if(len>1800000||checklimit>500000){
+						checklimit=0;
+ 				printf("%d\n",len);
 				/*
 				if (binary)
 					fwrite(map[target], len,1,outfile);
@@ -424,7 +426,7 @@ int main(int argv, char **argc)
 		printf("%s\n",buffer);
 		system(buffer);
 	}
-	sleep(20000);
+	sleep(20);
 	}
 	return 0;
 }
