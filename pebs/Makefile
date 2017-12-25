@@ -7,6 +7,9 @@ USER_OBJ := dumper.o dump-util.o
 RESERVOIR_EXE := reservoir
 RESERVOIR_OBJ := reservoir.o dump-util.o
 
+OCCUPANCY_EXE := occupancy
+OCCUPANCY_OBJ := occupancy.o dump-util.o
+
 obj-m := simple-pebs.o
 M := make -C ${KDIR} M=`pwd`
 
@@ -30,4 +33,8 @@ ${RESERVOIR_OBJ} ${RESERVOIR_EXE}: CFLAGS := ${USER_CFLAGS}
 
 reservoir: dump-util.o reservoir.o
 
+occu: ${OCCUPANCY_EXE}
+${OCCUPANCY_OBJ} ${OCCUPANCY_EXE}: CFLAGS := ${USER_CFLAGS}
+
+occupancy: dump-util.o occupancy.o
 

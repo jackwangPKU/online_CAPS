@@ -107,13 +107,13 @@ bool containOne1(uint64_t cos) {
     int c = 0;
     while (cos) {
         if (cos % 2 == 1)
-            c++;
+            break;
         cos = cos >> 1;
     }
-    if (c == 1)
-        return true;
-    else
+    if ( (cos >>1) % 2 ==1 )
         return false;
+    else
+        return true;
 }
 /* direction: 0 right expand, 1 right reduce, 2 left expand, 3 left reduce*/
 uint64_t modifyCos(int index, int d) {

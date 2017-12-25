@@ -10,4 +10,5 @@ predict.o: predict.cpp predict.h
 	g++ -c predict.cpp
 dump-util.o: dump-util.cpp dump-util.h simple-pebs.h
 	g++ -c dump-util.cpp
-
+clean:
+	rm -rf *.o online_cap get_access

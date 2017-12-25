@@ -84,6 +84,10 @@
 #define MSR_IA32_PEBS_ENABLE		0x000003f1
 #define MSR_IA32_DS_AREA     		0x00000600
 
+#define IA32_QM_EVTSEL			0xc8d
+#define IA32_QM_CTR			0xc8e
+#define IA32_PQR_ASSOC			0xc8f
+
 #define EVTSEL_USR BIT(16)
 #define EVTSEL_OS 0
 #define EVTSEL_INT BIT(20)
@@ -107,6 +111,8 @@ static DEFINE_PER_CPU(unsigned long long,pre_instr);
 static DEFINE_PER_CPU(unsigned long long,d_access);
 static DEFINE_PER_CPU(unsigned long long,d_instr);
 static DEFINE_PER_CPU(unsigned long long,d_cycles);
+
+static DEFINE_PER_CPU(unsigned long long,llc_occu);
 
 struct pebs_v1 {
 	u64 flags;
@@ -149,6 +155,57 @@ static int pebs_record_size = sizeof(struct pebs_v1);
 
 #define FEAT1_PDCM 	BIT(15)
 #define FEAT2_DS 	BIT(21)
+
+void
+lcpuid(const unsigned leaf,
+       const unsigned subleaf,
+       struct cpuid_out *out)
+{
+        /*assert(out != NULL);*/
+        if (out == NULL)
+                return;
+
+#ifdef __x86_64__
+        asm volatile("mov %4, %%eax\n\t"
+                     "mov %5, %%ecx\n\t"
+                     "cpuid\n\t"
+                     "mov %%eax, %0\n\t"
+                     "mov %%ebx, %1\n\t"
+                     "mov %%ecx, %2\n\t"
+                     "mov %%edx, %3\n\t"
+                     : "=g" (out->eax), "=g" (out->ebx), "=g" (out->ecx),
+                       "=g" (out->edx)
+                     : "g" (leaf), "g" (subleaf)
+                     : "%eax", "%ebx", "%ecx", "%edx");
+#else
+        asm volatile("push %%ebx\n\t"
+                     "mov %4, %%eax\n\t"
+                     "mov %5, %%ecx\n\t"
+                     "cpuid\n\t"
+                     "mov %%eax, %0\n\t"
+                     "mov %%ebx, %1\n\t"
+                     "mov %%ecx, %2\n\t"
+                     "mov %%edx, %3\n\t"
+                     "pop %%ebx\n\t"
+                     : "=g" (out->eax), "=g" (out->ebx), "=g" (out->ecx),
+                       "=g" (out->edx)
+                     : "g" (leaf), "g" (subleaf)
+                     : "%eax", "%ecx", "%edx");
+#endif
+}
+
+static void _caculate_occupancy(void){
+	u64 ia_qm_ctr;
+	rdmsrl(IA32_QM_CTR, ia_qm_ctr);
+	struct cpuid_out cpuid_0xf_1;
+	lcpuid(0xf,1,&cpuid_0xf_1);
+	ia_qm_ctr *= cpuid_0xf_1.ebx;
+	__this_cpu_write(llc_occu, ia_qm_ctr);
+}
+
+static void caculate_occupancy(void){
+	on_each_cpu(_caculate_occupancy, NULL, 1);
+}
 
 static bool check_cpu(void)
 {
@@ -341,6 +398,9 @@ static long simple_pebs_ioctl(struct file *file, unsigned int cmd,
 		return put_user(per_cpu(d_cycles, cpu), (unsigned long long*)arg);
 	case GET_INSTR:
 		return put_user(per_cpu(d_instr, cpu), (unsigned long long*)arg);
+	case GET_OCCUPANCY:
+		caculate_occupancy();
+		return put_user(per_cpu(llc_occu, cpu), (unsigned long long*)arg);
 	default:
 		return -ENOTTY;
 	}
@@ -513,6 +573,8 @@ void simple_pebs_pmi(void)
 	
 	unsigned long long access,cycles,instr;
 	unsigned long long da,dc,di;
+
+	
 	rdmsrl(MSR_IA32_PMC2,access);
 	rdmsrl(MSR_FIXED_CTR0,instr);
 	rdmsrl(MSR_FIXED_CTR1,cycles);

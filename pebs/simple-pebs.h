@@ -8,3 +8,16 @@
 #define GET_ACCESS		0x8000
 #define GET_CYCLES		0x8001
 #define GET_INSTR		0x8002
+#define GET_OCCUPANCY		0x8003
+
+struct cpuid_out {
+        uint32_t eax;
+        uint32_t ebx;
+        uint32_t ecx;
+        uint32_t edx;
+};
+
+void
+lcpuid(const unsigned leaf,
+       const unsigned subleaf,
+       struct cpuid_out *out);
