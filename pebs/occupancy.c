@@ -13,15 +13,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <ctime>
 #include <time.h>
 #include <math.h>
 #include "simple-pebs.h"
 #include "dump-util.h"
 
 #define err(x) perror(x), exit(1)
-
-int core_use[2] = {10,12};
+#define corenum 2
+int core_use[corenum] = {10,11};
 int main(int ac, char **av)
 {
 	int size = get_size();
@@ -33,20 +32,23 @@ int main(int ac, char **av)
 	int i;
 	for (i = 0; i < ncpus; i++)
 		open_cpu(&map[i], i, &pfd[i], size);
-	
+	/*for (i = 0; i < corenum; i++)
+		ioctl(pfd[core_use[i]].fd, GET_OCCUPANCY_INIT, 0);	
+	*/
 	for(;;){
 		if(poll(pfd, ncpus, -1)<0)
 			perror("poll");
 		for(target=0; target<2; target++)
 		if(pfd[target].revents & POLLIN){
+			ioctl(pfd[core_use[target]].fd, GET_OCCUPANCY_INIT, 0);
 			unsigned long long occu;
 			if (ioctl(pfd[core_use[target]].fd, GET_OCCUPANCY, &occu) < 0) {
 				perror("GET_OCCUPANCY");
 				continue;
 			}
-			printf("occu: %llu\n",occu);
+			printf("occu: %d\n",occu/1024);
 		}
-		sleep(100);
+		sleep(1);
 	}
 	/*	
 	for (;;) {

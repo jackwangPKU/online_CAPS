@@ -75,6 +75,7 @@ inline int count_1s(int v) {
 void get_accessrate();
 void get_mrc(int i,FILE* fin);
 void get_baseIPC();
+double predict_occupancy(double *real);
 double predict_total_miss_rate();
 double predict_total_ipc(double CPI, double PENALTY);
 double predict_weighted_slowdown(double CPI,double PENALTY);

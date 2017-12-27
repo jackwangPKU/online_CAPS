@@ -163,6 +163,45 @@ void get_mrc(int i,FILE *fin) {
         workload[i].mrc[c] = pre;
 }
 
+double predict_occupancy(double *real){
+    memset(segment, 0, sizeof(segment));
+    memset(occupancy, 0, sizeof(occupancy));
+
+    for(int i=0;i<workload_num;i++) workload[i].ways = count_1s(workload[i].cos);
+    segmentation();
+    init_occupancy();
+    //get_accessrate();
+    // iteration process
+    /*
+    for (accesses = 1000; accesses >= 100; accesses -= 1) {
+        o2m();
+        m2o();
+    }
+    */
+    accesses = 20000;
+    for (int i = 0; i < 1000; i++) {
+        o2m();
+        m2o();
+        /*
+        for( int j = 0; j< workload_num; j++ ){
+            if(j==0)printf("%d\n",(int)workload[j].occ);
+        }
+        */
+        // printf("\n");
+        if (i % 10 == 0)
+            accesses=accesses-150;
+    }
+    o2m();
+    double error=0;
+    for(int i = 0; i < workload_num; i++){
+	error += fabs(real[i]-workload[i].occ)/real[i];
+	printf("real occ: %lf pred: %lf\n",(double)real[i],workload[i].occ);
+	}
+    error /= workload_num;
+	//printf("error %d:%lf\n",error);
+    return error;
+}
+
 double predict_max_weighted_slowdown(double CPI, double PENALTY) {
     char filename[100];
     memset(segment, 0, sizeof(segment));

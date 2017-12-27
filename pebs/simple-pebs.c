@@ -193,6 +193,23 @@ lcpuid(const unsigned leaf,
                      : "%eax", "%ecx", "%edx");
 #endif
 }
+static void occupancy_monitor_init(void){
+	int core_id = smp_processor_id();
+	/*event: L3 cache occupancy  01H
+ 	ia32_qm_evtsel: 7:0 0x01 31:8 reserved 31+N:32 RMID 63:32+N reserved
+	ia32_pqr_assoc: 9:0 RMID 31:10 reserved 51:32 COS 63:52 reserved
+	*/
+	unsigned long long evtsel = ((unsigned long long)core_id << 32) + 1;
+	printk("coreid: %d evtsel: %llu\n",core_id,evtsel);
+	wrmsrl(IA32_QM_EVTSEL, evtsel);
+	unsigned long long assoc = core_id + ((unsigned long long)core_id << 32);
+	wrmsrl(IA32_PQR_ASSOC, assoc);
+}
+
+static void occupancy_monitor_reset(void){
+	wrmsrl(IA32_QM_EVTSEL, 0);
+	wrmsrl(IA32_PQR_ASSOC, 0);
+}
 
 static void _caculate_occupancy(void){
 	u64 ia_qm_ctr;
@@ -201,10 +218,6 @@ static void _caculate_occupancy(void){
 	lcpuid(0xf,1,&cpuid_0xf_1);
 	ia_qm_ctr *= cpuid_0xf_1.ebx;
 	__this_cpu_write(llc_occu, ia_qm_ctr);
-}
-
-static void caculate_occupancy(void){
-	on_each_cpu(_caculate_occupancy, NULL, 1);
 }
 
 static bool check_cpu(void)
@@ -399,8 +412,14 @@ static long simple_pebs_ioctl(struct file *file, unsigned int cmd,
 	case GET_INSTR:
 		return put_user(per_cpu(d_instr, cpu), (unsigned long long*)arg);
 	case GET_OCCUPANCY:
-		caculate_occupancy();
+		smp_call_function_single(cpu, _caculate_occupancy, NULL, 1);
 		return put_user(per_cpu(llc_occu, cpu), (unsigned long long*)arg);
+	case GET_OCCUPANCY_INIT:
+		smp_call_function_single(cpu, occupancy_monitor_init, NULL, 1);
+		return 0;
+	case GET_OCCUPANCY_RESET:
+		smp_call_function_single(cpu, occupancy_monitor_reset, NULL, 1);
+		return 0;
 	default:
 		return -ENOTTY;
 	}
