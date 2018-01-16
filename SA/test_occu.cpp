@@ -64,60 +64,6 @@ double k = 6e-7;//constant
 
 FILE *fin;
 double best, cur_miss_rate;
-
-char *ull2BinaryStr(uint64_t cos) {
-    char temp[256];
-    char *s = new char[256];
-    int i = 0;
-    while (cos) {
-        temp[i] = cos % 2 + '0';
-        cos /= 2;
-        i++;
-    }
-    for (int j = 0; j < i; j++)
-        s[j] = temp[i - j - 1];
-    s[i] = 0;
-    return s;
-}
-
-char *cos2Pic(uint64_t cos){
-    char temp[256];
-    char *s = new char[256];
-    int i = 0;
-    while(cos){
-        if(cos%2==0) temp[i] = ' ';
-        else temp[i] = '*';
-        i++;
-        cos /=2;
-    }
-    for(;i<20;i++) temp[i]=' ';
-    for(int j=0; j<i; j++)
-        s[j] = temp[i-j-1];
-    s[i] = '\0';
-    return s;
-}
-
-char *ull216Str(uint64_t cos) {
-    char *s = new char[256];
-    strcpy(s, "0x");
-    char temp[256];
-    sprintf(temp, "%llx", cos);
-    strcat(s, temp);
-    return s;
-}
-bool containOne1(uint64_t cos) {
-    int c = 0;
-    while (cos) {
-        if (cos % 2 == 1)
-            break;
-        cos = cos >> 1;
-    }
-    if ( (cos >>1) % 2 ==1 )
-        return false;
-    else
-        return true;
-}
-
 /*reservoir dumper================================================*/
 
 unsigned long long domain_value_to_index(unsigned long long value)
@@ -140,8 +86,7 @@ unsigned long long domain_index_to_value(unsigned long long index)
         value += step*domain;
         step *= 2;
         index -= domain;
-    }
-    while (index>0) {
+
         value += step;
         index--;
     }
@@ -253,7 +198,7 @@ int main(int argv, char **argc)
     	unsigned long long loc = rand()%(STEP*2)+1;
 		int checklimit = 0;
 		int _count = 0;
-		for(;_count<4;){
+		for(;_count<2;){
 			checklimit ++;
 			if(poll(pfd, ncpus, -1)<0)
 				perror("poll");
@@ -334,7 +279,7 @@ int main(int argv, char **argc)
 					_index ++;
 				}
    	 	}
-		//for(int y=0;y<MAXS;y++){printf("%d: %.6lf\n",y,workload[k].mrc[y]);}	
+		//for(int y=0;y<MAXS;y++){ if(y%1000==0)printf("workload:%d api: %.6lf, %dKB: %.6lf\n",k,workload[k].access_rate,y,workload[k].mrc[y]);}	
 
 		//printf("mrc 0:%.6lf 1:%.6lf\n",workload[k].mrc[0],workload[k].mrc[MAXS]);
 	}
@@ -350,8 +295,8 @@ int main(int argv, char **argc)
 						perror("GET_OCCUPANCY");
 						continue;
 					}
-					real_occupancy[j] += occu/1024.0;
-					printf("workload_num: %d j: %d real occu %lld: %d\n",workload_num,j,target,occu);
+					real_occupancy[j] += (double)occu/1024.0;
+					//printf("workload_num: %d j: %d real occu %lld: %d\n",workload_num,j,target,occu);
 				}
 			}						
 		}

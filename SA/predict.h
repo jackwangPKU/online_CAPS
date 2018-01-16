@@ -35,6 +35,7 @@ struct Workload {
     double access_rate, miss_ratio;
     double base_ipc;
     double ipc;
+    double apc;
     double weighted_slowdown;
     uint64_t access_num;
     double mrc[MAXS];

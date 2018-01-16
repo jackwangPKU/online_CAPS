@@ -200,7 +200,7 @@ static void occupancy_monitor_init(void){
 	ia32_pqr_assoc: 9:0 RMID 31:10 reserved 51:32 COS 63:52 reserved
 	*/
 	unsigned long long evtsel = ((unsigned long long)core_id << 32) + 1;
-	printk("coreid: %d evtsel: %llu\n",core_id,evtsel);
+	/*printk("coreid: %d evtsel: %llu\n",core_id,evtsel);*/
 	wrmsrl(IA32_QM_EVTSEL, evtsel);
 	unsigned long long assoc = core_id + ((unsigned long long)core_id << 32);
 	wrmsrl(IA32_PQR_ASSOC, assoc);
