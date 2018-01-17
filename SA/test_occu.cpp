@@ -169,8 +169,8 @@ int main(int argv, char **argc)
         }
     }
     get_baseIPC();
-
-//printf("OK\n");
+	//segmentation();
+	//init_occupancy();
 	int _size = get_size();
 	int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 	void *map[ncpus];
@@ -248,7 +248,7 @@ int main(int argv, char **argc)
 			return -1;
 		}
 		workload[k].access_rate = (double)d_access/d_instr;
-		//printf("access_rate:%lf\n",workload[k].access_rate);
+		//printf("access:%llu instr:%llu access_rate:%lf\n",d_access,d_instr,workload[k].access_rate);
 		/*mrc*/
 		memset(workload[k].mrc,0,sizeof(double)*MAXS);
 		int i =0;
@@ -301,11 +301,12 @@ int main(int argv, char **argc)
 			}						
 		}
 
-		for(int i=0; i<workload_num; i++) real_occupancy[i]/=10;
+		for(int i=0; i<workload_num; i++) real_occupancy[i]/=10.0;
 
  		double error;
 		error = predict_occupancy(real_occupancy);
 		printf("accuracy: %lf\n",1-error);
+		for(int i=0; i<workload_num; i++) printf("%lf\n",workload[i].apc);
 		for(int i=0; i<workload_num; i++) real_occupancy[i]=0;
 		sleep(5);
 	}

@@ -42,6 +42,7 @@ void segmentation() {
 }
 
 void init_occupancy() {
+//	printf("segment num :%d\n",segment_num);
     for (int i = 0; i < segment_num; i++) {
         uint64_t segment_ways = segment[i].ends - segment[i].begins + 1;
         uint64_t segment_blocks = segment_ways * WAY_SIZE / BLOCK;
@@ -51,6 +52,8 @@ void init_occupancy() {
             int wid = *iter;
             occupancy[wid][i] =
                 (double)segment_blocks / segment[i].workload.size();
+//printf("segment_blocks: %llu, segment[%d].workload.size: %d",segment_blocks,i,segment[i].workload.size());		
+//printf("occupancy[%d][%d]: %lf\n",wid,i, occupancy[wid][i]);
         }
     }
 }
@@ -68,8 +71,9 @@ void o2m() {
         workload[i].miss_ratio = workload[i].mrc[(uint64_t)occ]==0 ? 0.00001 : workload[i].mrc[(uint64_t)occ];
 		//printf("%.6lf %d\n",workload[i].miss_ratio,(int)occ);
         workload[i].ipc = 1/(CPI+workload[i].miss_ratio*workload[i].access_rate*PENALTY);
-        //printf("in o2m workload[%d] , miss_ratio: %lf ipc: %lf\n",i,workload[i].miss_ratio,workload[i].ipc);
+     //   printf("in o2m workload[%d] , miss_ratio: %lf ipc: %lf access rate: %lf\n",i,workload[i].miss_ratio,workload[i].ipc,workload[i].access_rate);
     	workload[i].apc = workload[i].ipc*workload[i].access_rate;
+	//printf("%lf %lf %lf\n",workload[i].ipc,workload[i].access_rate,workload[i].apc);
 	}
 }
 
@@ -96,12 +100,33 @@ void m2o() {
         for (set<int>::iterator iter = segment[i].workload.begin();
              iter != segment[i].workload.end(); iter++) {
             int wid = *iter;
-/* p0 / p1 = C0 * APC0 / C1 * APC1 
-p0 + p1 = 1 		
-*/
-		double p1 = 1.0 / (1 + (segment_blocks * apc_total) / ((segment_blocks - occupancy[wid][i]) * (apc_total-workload[wid].apc)) );
+/*
+ * model 0:
+ * p0 / p1 = C0 * APC0 / C1 * APC1 
+ * p0 + p1 = 1
+ */
+
+  	
+
+		double p1 = 1.0 * (segment_blocks - occupancy[wid][i]) * (apc_total - workload[wid].apc) / ((segment_blocks - occupancy[wid][i]) * (apc_total - workload[wid].apc) + occupancy[wid][i] * workload[wid].apc);
 		double p0 = 1-p1;
-		occupancy[wid][i] = occupancy[wid][i] + miss_num[wid] * p1 - (miss_num_total - miss_num[wid]) * p0;
+		occupancy[wid][i] = occupancy[wid][i] + miss_num[wid]  - miss_num_total * p1;
+printf("%lf %lf\n",p0,p1);
+
+
+/* model 1:
+ * p0 / p1 = C0 * APC0 / C1 * APC1
+ * p1 * C1 + p0 * C0 = 1
+ * 
+ * */
+/*
+	double R = workload[wid].apc * (segment_blocks - occupancy[wid][i]) / ((apc_total - workload[wid].apc) * occupancy[wid][i]);
+	double p0 = R / (occupancy[wid][i] + R * (segment_blocks - occupancy[wid][i]));
+	double p1 = 1.0 / (occupancy[wid][i] + R * (segment_blocks - occupancy[wid][i]));
+	//printf("%lf %llu occupancy[%d][%d]:%lf, %lf\n",workload[wid].apc,segment_blocks,wid,i,occupancy[wid][i],apc_total);
+	//printf("%lf %lf %lf\n",R,p0,p1);
+	occupancy[wid][i] = occupancy[wid][i] * (1-(miss_num_total - miss_num[wid]) * p0) + (segment_blocks - occupancy[wid][i]) * miss_num[wid] * p1;
+*/
 /*
             occupancy[wid][i] = occupancy[wid][i] +
                                 miss_num[wid] *
@@ -109,10 +134,11 @@ p0 + p1 = 1
                                     segment_blocks -
                                 (miss_num_total - miss_num[wid]) *
                                     occupancy[wid][i] / segment_blocks;
-*/
+
             if(occupancy[wid][i]<=0){
 		occupancy[wid][i] = 10;
 		}
+*/
 	}
     }
 }

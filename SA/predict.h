@@ -73,6 +73,8 @@ inline int count_1s(int v) {
     }
     return num;
 }
+void segmentation();
+void init_occupancy();
 void get_accessrate();
 void get_mrc(int i,FILE* fin);
 void get_baseIPC();
