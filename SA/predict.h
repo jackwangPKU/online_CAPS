@@ -10,7 +10,7 @@ using namespace std;
 
 typedef unsigned long int uint64_t;
 const uint64_t CACHE_LINE = 64; // Cache Line Size is 64B
-const uint64_t MAXN = 20;
+const uint64_t MAXN = 22;
 const uint64_t MAXT = 10000 + 3;
 const uint64_t MAXH = 19999997;
 const uint64_t domain = 256;

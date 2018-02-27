@@ -32,7 +32,7 @@ extern "C"{
 	void open_cpu(void **mapp, int cnum, struct pollfd *pfd, int size);
 }
 */
-int core_use[15] = {10,12,14,16,44,46,48,50,52,54,56,58,60,62,64};
+int core_use[22] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21};
 struct node {
     unsigned long long addr,label,ed;
     struct node *pre,*nxt;
@@ -55,7 +55,7 @@ extern int workload_num;
 extern bool need_calc_ar;
 
 uint64_t best_cos[MAXN];
-
+//FILE *output;
 double T = 10000;//temperature
 double T_min = 1;//threshold
 double k = 6e-7;//constant
@@ -246,7 +246,7 @@ int main(int argv, char **argc)
     	srand(time(NULL));
 
     workload_num = argv / 2 - 1;
-	if(workload_num >15){
+	if(workload_num >22){
 		printf("too many workloads\n");
 		return 0;
 	}
@@ -254,7 +254,7 @@ int main(int argv, char **argc)
     if (argc[1][0] == '1') {
         need_calc_ar = true;
     }
-
+	
     for (int i = 0; i < workload_num; i++) {
         workload[i].occ = 0;
         workload[i].name = strdup(argc[i * 2 + 2]);
@@ -269,7 +269,7 @@ int main(int argv, char **argc)
         }
     }
     get_baseIPC();
-
+	//output = fopen("overhead.csv", "w");
 //printf("OK\n");
 	int _size = get_size();
 	int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
@@ -286,7 +286,7 @@ int main(int argv, char **argc)
 	int target = 0;
 	for(k = 0; k < workload_num; k++){
 		target = core_use[k];
-		printf("target: %d\n",target);
+		//printf("target: %d\n",target);
 	
 		/*get mrc*/
 		qlen = 0; insnum = 0;
@@ -296,10 +296,42 @@ int main(int argv, char **argc)
 		m = 0; n = 0;
     	unsigned long long now,tott = 0;
     	unsigned long long loc = rand()%(STEP*2)+1;
-		int checklimit = 0;
+	/*access rate*/
+		unsigned long long d_instr,d_access,d_cycle,d_miss,d_occupancy;
+		double mr;
+		if(ioctl(pfd[target].fd, GET_CYCLES, &d_cycle)<0){
+			perror("GET CYCLES");
+			return -1;
+		}
+		if(ioctl(pfd[target].fd, GET_ACCESS, &d_access)<0){
+			perror("GET ACCESS");
+			return -1;
+		}
+		if(ioctl(pfd[target].fd, GET_INSTR, &d_instr)<0){
+			perror("GET INSTR");
+			return -1;
+		}
+		if(ioctl(pfd[target].fd, GET_MISS, &d_miss)<0){
+			perror("GET MISS");
+			return -1;
+		}
+		ioctl(pfd[target].fd, GET_OCCUPANCY_INIT, 0);
+		if(ioctl(pfd[target].fd, GET_OCCUPANCY, &d_occupancy)<0){
+			perror("GET occu");
+			return -1;
+		}
+		double apc = (double)d_access/d_cycle;
+		mr = (double)d_miss/d_access;
+		d_occupancy /= 1024;
+		workload[k].access_rate = (double)d_access/d_instr;
+		//printf("access: %llu, instr: %llu, access_rate:%lf miss:%llu mr: %lf occ:%d apc:%lf\n",d_access,d_instr,workload[k].access_rate,d_miss,(double)d_miss/d_access,(int)d_occupancy,apc);
+		
+		int lenlimit = 10000000 * apc;
 		int _count = 0;
-		for(;_count<4;){
-			checklimit ++;
+		clock_t start ,duration;
+		int total_len = 0;
+		for(;_count<20;){
+			start = clock();
 			if(poll(pfd, ncpus, -1)<0)
 				perror("poll");
 			if(pfd[target].revents & POLLIN){
@@ -309,9 +341,10 @@ int main(int argv, char **argc)
 					perror("SIMPLE_PEBS_GET_OFFSET");
 					continue;
 				}
-					if(len>1800000||checklimit>500000){
-						checklimit=0;
- 				printf("%d\n",len);
+				duration = 1000*(clock()-start)/CLOCKS_PER_SEC;
+					if(duration>5 || len >lenlimit){
+					total_len += len;
+ 				//printf("len: %d duration:%d\n",len,duration);
 				/*
 				if (binary)
 					fwrite(map[target], len,1,outfile);
@@ -337,19 +370,7 @@ int main(int argv, char **argc)
 				}
 			}
 		}
-		/*access rate*/
-		unsigned long long d_instr,d_access;
-		if(ioctl(pfd[target].fd, GET_ACCESS, &d_access)<0){
-			perror("GET ACCESS");
-			return -1;
-		}
-		if(ioctl(pfd[target].fd, GET_INSTR, &d_instr)<0){
-			perror("GET INSTR");
-			return -1;
-		}
-		workload[k].access_rate = (double)d_access/d_instr;
-		//printf("access_rate:%lf\n",workload[k].access_rate);
-		/*mrc*/
+	/*mrc*/
 		memset(workload[k].mrc,0,sizeof(double)*MAXS);
 		int i =0;
  		for (i = 0; i<qlen; i++)
@@ -379,8 +400,41 @@ int main(int argv, char **argc)
 					_index ++;
 				}
    	 	}
-		//for(int y=0;y<MAXS;y++){printf("%d: %.6lf\n",y,workload[k].mrc[y]);}	
-
+		double er = mr - workload[k].mrc[(int)d_occupancy];
+		//printf("pred mr: %lf\n",workload[k].mrc[(int)d_occupancy]);
+		for(int y=0;y<MAXS;y++){ 
+			if(workload[k].mrc[y] + er <0) workload[k].mrc[y] = 0.00001;
+			else if(workload[k].mrc[y] + er >1) workload[k].mrc[y] = 99.9999;
+			else workload[k].mrc[y] += er;
+			}
+		
+		//for(int y=0;y<MAXS;y++){if(y%2000 ==0)printf("%d: %.6lf\n",y,workload[k].mrc[y]);}	
+		
+		//verify	
+		if(ioctl(pfd[target].fd, GET_CYCLES, &d_cycle)<0){
+                        perror("GET CYCLES");
+                        return -1;
+                }
+                if(ioctl(pfd[target].fd, GET_ACCESS, &d_access)<0){
+                        perror("GET ACCESS");
+                        return -1;
+                }
+                if(ioctl(pfd[target].fd, GET_INSTR, &d_instr)<0){
+                        perror("GET INSTR");
+                        return -1;
+                }
+                if(ioctl(pfd[target].fd, GET_MISS, &d_miss)<0){
+                        perror("GET MISS");
+                        return -1;
+                }
+                ioctl(pfd[target].fd, GET_OCCUPANCY_INIT, 0);
+                if(ioctl(pfd[target].fd, GET_OCCUPANCY, &d_occupancy)<0){
+                        perror("GET occu");
+                        return -1;
+                }
+		d_occupancy /= 1024;
+		//printf("new: %llu %llu %llu %llu %d\n",d_cycle,d_access,d_instr,d_miss,(int)d_occupancy);
+		//printf("target,%d,error,%lf,total len,%d\n",core_use[k],workload[k].mrc[(int)d_occupancy] - (double)d_miss/d_access,total_len);
 		//printf("mrc 0:%.6lf 1:%.6lf\n",workload[k].mrc[0],workload[k].mrc[MAXS]);
 	}
  
@@ -401,7 +455,14 @@ int main(int argv, char **argc)
 		for(int _i = 0;_i<workload_num;_i++)
 		best_cos[_i] = workload[_i].cos;
 	}
-        double df = tmp - cur_miss_rate;
+/*
+	printf("allocation:\n");
+	for(int _i = 0; _i<workload_num; _i++){
+		printf("workload %d %llx\n",_i,workload[_i].cos);
+	}
+	printf("missnum: %lf\n\n",tmp);
+*/  
+      double df = tmp - cur_miss_rate;
         if ((df > 0) && ((rand() % 1000 / (float)1000) > exp(-df / (k * T)))) {
             workload[target].cos = pre_cos;
         } else {
@@ -414,6 +475,7 @@ int main(int argv, char **argc)
         else _count++;
     }
 	printf("best %.6lf, cos:=========\n",best);
+
 	char buffer[1024]={0};
 	for(int _j = 0; _j<workload_num;_j++ ){
 		sprintf(buffer,"pqos -e \"llc:%d=%s\"",_j+1,ull216Str(workload[_j].cos));
@@ -426,7 +488,9 @@ int main(int argv, char **argc)
 		printf("%s\n",buffer);
 		system(buffer);
 	}
-	sleep(20);
+
+	//sleep(20);
 	}
+	//fclose(output);
 	return 0;
 }

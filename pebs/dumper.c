@@ -75,8 +75,8 @@ int main(int ac, char **av)
 				perror("SIMPLE_PEBS_GET_OFFSET");
 				continue;
 			}
-			if(len>1800000){
-				/*printf("%d\n",len);*/
+			if(len>180000){
+				printf("%d\n",len);
 				if (binary)
 					fwrite(map[target], len,1,outfile);
 				else
@@ -86,6 +86,7 @@ int main(int ac, char **av)
 					perror("SIMPLE_PEBS_RESET");
 					continue;
 				}
+/*
 				unsigned long long access,cycles,instr;
 				if (ioctl(pfd[target].fd, GET_ACCESS, &access) < 0) {
 					perror("GET_ACCESS");
@@ -99,7 +100,7 @@ int main(int ac, char **av)
 					perror("GET_INSTR");
 					continue;
 				}
-				printf("%d %llu %llu %llu\n",len,access,cycles,instr);	
+				printf("%d %llu %llu %llu\n",len,access,cycles,instr);*/
 				_count++;
 			}
 		}

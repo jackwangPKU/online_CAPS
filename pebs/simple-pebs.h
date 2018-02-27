@@ -11,7 +11,7 @@
 #define GET_OCCUPANCY		0x8003
 #define GET_OCCUPANCY_INIT	0x8004
 #define GET_OCCUPANCY_RESET	0x8005
-
+#define GET_MISS		0x8006
 struct cpuid_out {
         uint32_t eax;
         uint32_t ebx;

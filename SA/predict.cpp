@@ -13,7 +13,8 @@ uint64_t accesses;
 bool need_calc_ar;
 double CPI = 0.4;
 double PENALTY = 70;
-
+double evict_p[MAXN];
+double evict_r[MAXN];
 void segmentation() {
     set<int> current;
     set<int> tmp;
@@ -69,9 +70,9 @@ void o2m() {
         if(occ>=MAXS) occ=MAXS-1;
         // if(occ<0) printf("error\n");
         workload[i].miss_ratio = workload[i].mrc[(uint64_t)occ]==0 ? 0.00001 : workload[i].mrc[(uint64_t)occ];
-		//printf("%.6lf %d\n",workload[i].miss_ratio,(int)occ);
+		//printf("%.6lf %llu\n",workload[i].miss_ratio,occ);
         workload[i].ipc = 1/(CPI+workload[i].miss_ratio*workload[i].access_rate*PENALTY);
-     //   printf("in o2m workload[%d] , miss_ratio: %lf ipc: %lf access rate: %lf\n",i,workload[i].miss_ratio,workload[i].ipc,workload[i].access_rate);
+        //printf("in o2m workload[%d] , miss_ratio: %lf ipc: %lf access rate: %lf\n",i,workload[i].miss_ratio,workload[i].ipc,workload[i].access_rate);
     	workload[i].apc = workload[i].ipc*workload[i].access_rate;
 	//printf("%lf %lf %lf\n",workload[i].ipc,workload[i].access_rate,workload[i].apc);
 	}
@@ -86,33 +87,61 @@ void m2o() {
         for (set<int>::iterator iter = segment[i].workload.begin();
              iter != segment[i].workload.end(); iter++) {
             int wid = *iter;
-	    apc_total += workload[wid].apc;
+	    //apc_total += workload[wid].apc;
             miss_num[wid] =
                 (workload[wid].miss_ratio * workload[wid].access_rate * workload[wid].ipc * accesses * segment_ways / workload[wid].ways);
-            // printf("miss_num %lf\n",miss_num[wid]);
-            miss_num_total += miss_num[wid];
+       //      printf("miss_num %lf\n",miss_num[wid]);
+            //miss_num_total += miss_num[wid];
             //printf("workload[%d].miss_ratio: %lf, workload[%d].access_rate: %lf,accesses: %d,\
  	ipc: %lf, segment_ways: %d, workload[%d].ways: %d, miss_num[%d]: %lf\n",\
 	wid,workload[wid].miss_ratio,wid,workload[wid].access_rate,accesses,workload[wid].ipc,\
 	segment_ways,wid,workload[wid].ways,wid,miss_num[wid]);
         }
         // printf("miss_num_total: %d\n",miss_num_total);
-        for (set<int>::iterator iter = segment[i].workload.begin();
+        set<int>::iterator iter = segment[i].workload.begin();
+	int first = *iter;
+	evict_r[first] = 1;
+	double tmp = 1;
+        for (iter = segment[i].workload.begin();
              iter != segment[i].workload.end(); iter++) {
             int wid = *iter;
+		if(wid!=first){
+		evict_r[wid] = occupancy[wid][i] * workload[first].apc / (occupancy[first][i] * workload[wid].apc);
+		//printf("%lf %lf %lf %lf \n",occupancy[wid][i], workload[first].apc, occupancy[first][i], workload[wid].apc);
+		//printf("evtct_r[%d] %lf\n",wid,evict_r[wid]);
+		tmp += evict_r[wid];
+		}
+	}
+	for (iter = segment[i].workload.begin();
+             iter != segment[i].workload.end(); iter++) {
+            int wid = *iter;
+		evict_p[wid] = evict_r[wid] / tmp;
+	//	printf("w%d: missratio: %lf, access_rate: %lf, ipc: %lf, access: %d, missnum: %lf ,evict_p : %lf, occu: %lf\n",wid,workload[wid].miss_ratio,workload[wid].access_rate,workload[wid].ipc,accesses,miss_num[wid],evict_p[wid],occupancy[wid][i]);
+	}
+
+	
+	for (iter = segment[i].workload.begin();
+             iter != segment[i].workload.end(); iter++) {
+            int wid = *iter;
+		for (set<int>::iterator iter2 = segment[i].workload.begin();
+             		iter2 != segment[i].workload.end(); iter2++) {
+			int wid2 = *iter2;
+			if(wid2!=wid){
+            		occupancy[wid][i] += (evict_p[wid2] * miss_num[wid] - evict_p[wid] * miss_num[wid2]);
+			}
+			//printf("occupancy[%d] : %lf\n",wid,occupancy[wid][i]);
+		}
 /*
  * model 0:
  * p0 / p1 = C0 * APC0 / C1 * APC1 
  * p0 + p1 = 1
- */
-
-  	
-
-		double p1 = 1.0 * (segment_blocks - occupancy[wid][i]) * (apc_total - workload[wid].apc) / ((segment_blocks - occupancy[wid][i]) * (apc_total - workload[wid].apc) + occupancy[wid][i] * workload[wid].apc);
+*/ 
+/*  	
+		double p1 = 1.0 * occupancy[wid][i] * (apc_total - workload[wid].apc) / ((segment_blocks - occupancy[wid][i]) * workload[wid].apc + occupancy[wid][i] * (apc_total - workload[wid].apc));
 		double p0 = 1-p1;
 		occupancy[wid][i] = occupancy[wid][i] + miss_num[wid]  - miss_num_total * p1;
 printf("%lf %lf\n",p0,p1);
-
+*/
 
 /* model 1:
  * p0 / p1 = C0 * APC0 / C1 * APC1
@@ -134,11 +163,11 @@ printf("%lf %lf\n",p0,p1);
                                     segment_blocks -
                                 (miss_num_total - miss_num[wid]) *
                                     occupancy[wid][i] / segment_blocks;
-
+*/
             if(occupancy[wid][i]<=0){
 		occupancy[wid][i] = 10;
 		}
-*/
+
 	}
     }
 }
@@ -216,9 +245,9 @@ double predict_occupancy(double *real){
         m2o();
     }
     */
-    accesses = 2000000;
+    accesses = 20000;
 //printf("workload num:%d\n",workload_num);
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 200; i++) {
         o2m();
         m2o();
        /* 
@@ -228,7 +257,7 @@ double predict_occupancy(double *real){
         */
         // printf("\n");
         if (i % 10 == 0)
-            accesses=accesses-1500;
+            accesses=accesses-800;
     }
     o2m();
     double error=0;
@@ -430,7 +459,7 @@ double predict_total_miss_rate() {
     }
     */
     accesses = 20000;
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 200; i++) {
         o2m();
         m2o();
         /*
@@ -439,9 +468,10 @@ double predict_total_miss_rate() {
         }
         */
         // printf("\n");
-        if (i % 10 == 0)
+ /*       if (i % 10 == 0)
             accesses-=150;
-    }
+   */
+	 }
     o2m();
 
     double pre_total_miss_ratio = 0;

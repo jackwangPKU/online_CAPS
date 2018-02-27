@@ -38,7 +38,7 @@ int main(int ac, char **av)
 	for(;;){
 		if(poll(pfd, ncpus, -1)<0)
 			perror("poll");
-		for(target=0; target<2; target++)
+		for(target=0; target<1; target++)
 		if(pfd[target].revents & POLLIN){
 			ioctl(pfd[core_use[target]].fd, GET_OCCUPANCY_INIT, 0);
 			unsigned long long occu;

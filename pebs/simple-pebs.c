@@ -77,6 +77,7 @@
 #define MSR_FIXED_CTR0			0x00000309/*inst_retired.any*/
 #define MSR_FIXED_CTR1			0x0000030a/*cpu_clk_unhalted*/
 
+#define MSR_PERF_FIXED_CTR_CTRL 	0x0000038d
 #define MSR_IA32_PERF_CABABILITIES  	0x00000345
 #define MSR_IA32_PERF_GLOBAL_STATUS 	0x0000038e
 #define MSR_IA32_PERF_GLOBAL_CTRL 	0x0000038f
@@ -97,6 +98,9 @@
 #define OUT_BUFFER_SIZE		(64 * 1024 * 64) /* must be multiple of 4k */
 #define PERIOD 1
 
+unsigned long long access,cycles,instr,miss;
+unsigned long long da,dc,di,dm;
+
 static unsigned pebs_event;
 
 static volatile int pebs_error;
@@ -111,6 +115,8 @@ static DEFINE_PER_CPU(unsigned long long,pre_instr);
 static DEFINE_PER_CPU(unsigned long long,d_access);
 static DEFINE_PER_CPU(unsigned long long,d_instr);
 static DEFINE_PER_CPU(unsigned long long,d_cycles);
+static DEFINE_PER_CPU(unsigned long long,pre_miss);
+static DEFINE_PER_CPU(unsigned long long,d_miss);
 
 static DEFINE_PER_CPU(unsigned long long,llc_occu);
 
@@ -218,6 +224,36 @@ static void _caculate_occupancy(void){
 	lcpuid(0xf,1,&cpuid_0xf_1);
 	ia_qm_ctr *= cpuid_0xf_1.ebx;
 	__this_cpu_write(llc_occu, ia_qm_ctr);
+}
+
+static void get_access(void){
+	rdmsrl(MSR_IA32_PMC2,access);
+	da = access - __this_cpu_read(pre_access);
+	/*printk("<6>""access: %llx %llu %llu\n",access,__this_cpu_read(pre_access),da);*/
+	__this_cpu_write(d_access,da);
+	__this_cpu_write(pre_access,access);
+}
+
+static void get_miss(void){
+	rdmsrl(MSR_IA32_PMC3,miss);
+	dm = miss-__this_cpu_read(pre_miss);
+	__this_cpu_write(d_miss,dm);
+	__this_cpu_write(pre_miss,miss);
+}
+
+static void get_cycle(void){
+	rdmsrl(MSR_FIXED_CTR1,cycles);
+	dc = cycles-__this_cpu_read(pre_cycles);
+	__this_cpu_write(d_cycles,dc);
+	__this_cpu_write(pre_cycles,cycles);
+}
+
+static void get_instr(void){
+	rdmsrl(MSR_FIXED_CTR0,instr);
+	di = instr-__this_cpu_read(pre_instr);
+	/*printk("<6>""instr: %llu %llu %llu\n",instr,__this_cpu_read(pre_instr),di);*/
+	__this_cpu_write(d_instr,di);
+	__this_cpu_write(pre_instr,instr);
 }
 
 static bool check_cpu(void)
@@ -360,17 +396,17 @@ static void status_dump(char *where)
 
 static void start_stop_cpu(void *arg)
 {
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, arg ? 0x300000006 : 0);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, arg ? 0x30000000e : 0);
 	status_dump("stop");
 }
 
 static void reset_buffer_cpu(void *arg)
 {
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000000);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x30000000c);
 	__this_cpu_write(out_buffer, __this_cpu_read(out_buffer_base));
 	/*clear pmc2
 	wrmsrl(MSR_IA32_PMC2,0);*/
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x30000000e);
 }
 
 static DEFINE_MUTEX(reset_mutex);
@@ -406,10 +442,16 @@ static long simple_pebs_ioctl(struct file *file, unsigned int cmd,
 		mutex_unlock(&reset_mutex);
 		return 0;
 	case GET_ACCESS:
+		smp_call_function_single(cpu, get_access, NULL, 1);	
 		return put_user(per_cpu(d_access, cpu), (unsigned long long*)arg);
+	case GET_MISS:
+		smp_call_function_single(cpu, get_miss, NULL, 1);	
+		return put_user(per_cpu(d_miss, cpu), (unsigned long long*)arg);
 	case GET_CYCLES:
+		smp_call_function_single(cpu, get_cycle, NULL, 1);
 		return put_user(per_cpu(d_cycles, cpu), (unsigned long long*)arg);
 	case GET_INSTR:
+		smp_call_function_single(cpu, get_instr, NULL, 1);	
 		return put_user(per_cpu(d_instr, cpu), (unsigned long long*)arg);
 	case GET_OCCUPANCY:
 		smp_call_function_single(cpu, _caculate_occupancy, NULL, 1);
@@ -564,7 +606,7 @@ void simple_pebs_pmi(void)
 	status_dump("pmi1");
 
 	/* disable PMU */
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x30000000c);
 
 	/* global status ack */
 	wrmsrl(MSR_IA32_PERF_GLOBAL_OVF_CTRL, 1ULL << 62);
@@ -589,24 +631,30 @@ void simple_pebs_pmi(void)
 		*outbu++ = dla;
 	}
 	this_cpu_write(out_buffer, outbu);
-	
-	unsigned long long access,cycles,instr;
-	unsigned long long da,dc,di;
+	/*	
+	unsigned long long access,cycles,instr,miss;
+	unsigned long long da,dc,di,dm;
 
 	
 	rdmsrl(MSR_IA32_PMC2,access);
 	rdmsrl(MSR_FIXED_CTR0,instr);
 	rdmsrl(MSR_FIXED_CTR1,cycles);
+	rdmsrl(MSR_IA32_PMC3,miss);
 	da = access-__this_cpu_read(pre_access);
 	dc = cycles-__this_cpu_read(pre_cycles);
 	di = instr-__this_cpu_read(pre_instr);
+	dm = miss-__this_cpu_read(pre_miss);
+
 	__this_cpu_write(d_access,da);
 	__this_cpu_write(d_cycles,dc);
 	__this_cpu_write(d_instr,di);
+	__this_cpu_write(d_miss,dm);
+
 	__this_cpu_write(pre_access,access);
 	__this_cpu_write(pre_cycles,cycles);
 	__this_cpu_write(pre_instr,instr);
-
+	__this_cpu_write(pre_miss,miss);
+	*/
 #if 0
 	pr_debug("%d: pmi %llx out %lx max %llx counter %llx num %llu\n",
 		smp_processor_id(),
@@ -629,10 +677,10 @@ void simple_pebs_pmi(void)
 	 * fifo
 	 */
 
-	if ((void *)outbu - (void *)outbu_start >= OUT_BUFFER_SIZE/2) {
+	if ((void *)outbu - (void *)outbu_start >= OUT_BUFFER_SIZE/10) {
 		wake_up(this_cpu_ptr(&simple_pebs_wait));
 	} else
-		wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
+		wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x30000000e);
 
 	status_dump("pmi3");
 }
@@ -719,24 +767,33 @@ static void simple_pebs_cpu_init(void *arg)
 	wrmsrl(MSR_IA32_PERFCTR1, -PERIOD); /* ? sign extension on width ? */
 	wrmsrl(MSR_IA32_EVNTSEL1,
 		pebs_event | EVTSEL_EN | EVTSEL_USR | EVTSEL_OS);
-
+	/* LLC reference*/
 	wrmsrl(MSR_IA32_EVNTSEL2,
 		0x4f2e | EVTSEL_EN | EVTSEL_USR | EVTSEL_OS);
+	
+	wrmsrl(MSR_IA32_EVNTSEL3,
+		0x412e | EVTSEL_EN | EVTSEL_USR | EVTSEL_OS);
+
 	/* Enable PEBS for counter 0 */
 	wrmsrl(MSR_IA32_PEBS_ENABLE, 2);
-	unsigned long long ori_access,ori_cycles,ori_instr;
+	unsigned long long ori_access,ori_cycles,ori_instr,ori_miss;
 	rdmsrl(MSR_IA32_PMC2,ori_access);
 	rdmsrl(MSR_FIXED_CTR0,ori_instr);
 	rdmsrl(MSR_FIXED_CTR1,ori_cycles);
+	rdmsrl(MSR_IA32_PMC3,ori_miss);
+
 	__this_cpu_write(pre_access,ori_access);
 	__this_cpu_write(pre_cycles,ori_cycles);
 	__this_cpu_write(pre_instr,ori_instr);
+	__this_cpu_write(pre_miss,ori_miss);
 	
 	__this_cpu_write(d_access,0);
 	__this_cpu_write(d_cycles,0);
 	__this_cpu_write(d_instr,0);
-
-	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x300000006);
+	__this_cpu_write(d_miss,0);
+	
+	wrmsrl(MSR_PERF_FIXED_CTR_CTRL, 0x22);
+	wrmsrl(MSR_IA32_PERF_GLOBAL_CTRL, 0x30000000e);
 	__this_cpu_write(cpu_initialized, 1);
 }
 

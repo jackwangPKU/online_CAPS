@@ -301,7 +301,7 @@ int main(int argv, char **argc)
 			}						
 		}
 
-		for(int i=0; i<workload_num; i++) real_occupancy[i]/=10.0;
+		for(int i=0; i<workload_num; i++) {real_occupancy[i] /= 10.0; if(real_occupancy[i] == 0) real_occupancy[i]=10; }
 
  		double error;
 		error = predict_occupancy(real_occupancy);
